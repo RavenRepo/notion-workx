@@ -176,6 +176,67 @@ describe("buildTools", () => {
 
     expect(tools.map((tool) => tool.name)).toEqual(["getThing", "getThing_2"]);
   });
+
+  it("deduplicates colliding parameter identifiers", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/users/{username}": {
+          put: {
+            operationId: "updateUser",
+            parameters: [pathParam("username")],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      username: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.params.map((param) => param.name)).toEqual(["username", "usernameBody"]);
+  });
+
+  it("renames reserved parameter identifiers before deduping", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/reserved/{class}": {
+          put: {
+            operationId: "updateReserved",
+            parameters: [
+              pathParam("class"),
+              {
+                name: "fetch",
+                in: "query",
+                schema: { type: "string" },
+              },
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      class: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.params.map((param) => param.name)).toEqual(["classParam", "fetchParam", "classParamBody"]);
+  });
 });
 
 function onlyTools(results: EndpointResult[]): ToolDefinition[] {

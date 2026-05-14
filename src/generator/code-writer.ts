@@ -192,7 +192,7 @@ function writeBodyBlock(tool: ToolDefinition): string {
       : `...(${param.name} !== undefined ? { ${JSON.stringify(param.originalName)}: ${param.name} } : {}),`,
   );
 
-  return `const body = JSON.stringify({
+  return `const requestBody = JSON.stringify({
 ${entries.map((entry) => `  ${entry}`).join("\n")}
 });`;
 }
@@ -204,7 +204,7 @@ function writeFetchBlock(tool: ToolDefinition, hasBody: boolean): string {
     "  headers,",
   ];
   if (hasBody) {
-    lines.push("  body,");
+    lines.push("  body: requestBody,");
   }
   lines.push("});");
   return lines.join("\n");

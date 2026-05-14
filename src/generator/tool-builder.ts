@@ -6,6 +6,7 @@ import {
   ResolvedSpec,
   SkippedEndpoint,
   ToolDefinition,
+  ToolParam,
   WorxConfig,
   AuthConfig,
 } from "../types";
@@ -56,6 +57,7 @@ export function buildTools(
       if (operation.requestBody) {
         params.push(...mapRequestBody(operation.requestBody));
       }
+      const dedupedParams = dedupeParamNames(params);
 
       const baseName = operation.operationId
         ? sanitizeToolName(toCamelCase(operation.operationId))
@@ -70,7 +72,7 @@ export function buildTools(
         description: truncate(operation.description ?? operation.summary ?? title, 200),
         method: method.toUpperCase() as ToolDefinition["method"],
         pathTemplate,
-        params,
+        params: dedupedParams,
         auth,
         tags: operation.tags ?? [],
         deprecated: Boolean(operation.deprecated),
@@ -112,6 +114,27 @@ function mergeParameters(pathItem: PathItem, operation: Operation): Parameter[] 
   }
 
   return order.map((key) => merged.get(key)).filter((parameter): parameter is Parameter => Boolean(parameter));
+}
+
+function dedupeParamNames(params: ToolParam[]): ToolParam[] {
+  const used = new Set<string>();
+  return params.map((param) => {
+    let name = param.name;
+    if (RESERVED_IDENTIFIERS.has(name)) {
+      name = `${name}Param`;
+    }
+    if (used.has(name)) {
+      const base = `${name}${toPascalCase(param.location)}`;
+      name = base;
+      let suffix = 2;
+      while (used.has(name) || RESERVED_IDENTIFIERS.has(name)) {
+        name = `${base}${suffix}`;
+        suffix += 1;
+      }
+    }
+    used.add(name);
+    return name === param.name ? param : { ...param, name };
+  });
 }
 
 function parameterKey(parameter: Parameter): string {
@@ -188,3 +211,63 @@ function sanitizeToolName(value: string): string {
   }
   return `operation${cleaned}`;
 }
+
+const RESERVED_IDENTIFIERS = new Set([
+  "BASE_URL",
+  "await",
+  "body",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "enum",
+  "error",
+  "export",
+  "extends",
+  "false",
+  "fetch",
+  "finally",
+  "for",
+  "function",
+  "headers",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "instanceof",
+  "interface",
+  "let",
+  "new",
+  "null",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "requestBody",
+  "requireSecret",
+  "res",
+  "static",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "undefined",
+  "url",
+  "var",
+  "void",
+  "while",
+  "with",
+  "worker",
+  "yield",
+]);

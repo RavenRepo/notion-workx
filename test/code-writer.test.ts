@@ -55,7 +55,7 @@ describe("writeCode", () => {
       ],
     })]), config());
 
-    expect(files.indexTs).toContain("const body = JSON.stringify");
+    expect(files.indexTs).toContain("const requestBody = JSON.stringify");
     expect(files.indexTs).toContain('"email": email');
     expect(files.indexTs).toContain('...(name !== undefined ? { "name": name } : {})');
   });
