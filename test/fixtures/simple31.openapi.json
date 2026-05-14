@@ -1,0 +1,25 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Simple 3.1 API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.simple31.test"
+    }
+  ],
+  "paths": {
+    "/ping": {
+      "get": {
+        "operationId": "ping",
+        "summary": "Ping",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,224 @@
+import { describe, expect, it } from "vitest";
+import { buildTools } from "../src/generator/tool-builder";
+import { EndpointResult, ResolvedSpec, ToolDefinition, WorxConfig } from "../src/types";
+
+describe("buildTools", () => {
+  it("uses operationId for tool names", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/customers/{id}": {
+          get: {
+            operationId: "get_customer",
+            summary: "Get customer",
+            parameters: [pathParam("id")],
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.name).toBe("getCustomer");
+  });
+
+  it("generates names from method and path when operationId is missing", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/customers/{id}": {
+          get: {
+            summary: "Get customer",
+            parameters: [pathParam("id")],
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.name).toBe("getCustomersById");
+  });
+
+  it("returns skipped endpoints for x-worx-skip", () => {
+    const results = buildTools(specWithPaths({
+      "/internal": {
+        get: {
+          operationId: "getInternal",
+          "x-worx-skip": true,
+        },
+      },
+    }), config());
+
+    expect(results[0]).toMatchObject({
+      skipped: true,
+      reason: "x-worx-skip flag set",
+    });
+  });
+
+  it("keeps deprecated operations and marks them deprecated", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/legacy": {
+          get: {
+            operationId: "getLegacy",
+            summary: "Get legacy",
+            deprecated: true,
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.deprecated).toBe(true);
+  });
+
+  it("skips multipart request bodies", () => {
+    const results = buildTools(specWithPaths({
+      "/files": {
+        post: {
+          operationId: "uploadFile",
+          requestBody: {
+            content: {
+              "multipart/form-data": {
+                schema: { type: "object" },
+              },
+            },
+          },
+        },
+      },
+    }), config());
+
+    expect(results[0]).toMatchObject({
+      skipped: true,
+      reason: "Non-JSON requestBody (multipart, binary, etc.)",
+    });
+  });
+
+  it("merges path-level and operation-level parameters", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/customers/{id}": {
+          parameters: [pathParam("id")],
+          get: {
+            operationId: "getCustomer",
+            parameters: [
+              {
+                name: "expand",
+                in: "query",
+                schema: { type: "string" },
+              },
+            ],
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.params.map((param) => param.name)).toEqual(["id", "expand"]);
+  });
+
+  it("lets operation-level parameters override path-level parameters", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/customers/{id}": {
+          parameters: [
+            {
+              ...pathParam("id"),
+              description: "Path-level description",
+            },
+          ],
+          get: {
+            operationId: "getCustomer",
+            parameters: [
+              {
+                ...pathParam("id"),
+                description: "Operation-level description",
+              },
+            ],
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.params).toHaveLength(1);
+    expect(tools[0]?.params[0]?.description).toContain("Operation-level description");
+  });
+
+  it("applies tag filters", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/customers": {
+          get: {
+            operationId: "listCustomers",
+            tags: ["customers"],
+          },
+        },
+        "/invoices": {
+          get: {
+            operationId: "listInvoices",
+            tags: ["billing"],
+          },
+        },
+      }), config(["billing"])),
+    );
+
+    expect(tools.map((tool) => tool.name)).toEqual(["listInvoices"]);
+  });
+
+  it("deduplicates repeated operation names", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/a": {
+          get: {
+            operationId: "getThing",
+          },
+        },
+        "/b": {
+          get: {
+            operationId: "getThing",
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools.map((tool) => tool.name)).toEqual(["getThing", "getThing_2"]);
+  });
+});
+
+function onlyTools(results: EndpointResult[]): ToolDefinition[] {
+  return results.filter((result): result is ToolDefinition => result.skipped === false);
+}
+
+function config(filter: string[] = []): WorxConfig {
+  return {
+    outputDir: "/tmp/worx",
+    filter,
+    dryRun: false,
+    groupByTag: false,
+  };
+}
+
+function specWithPaths(paths: ResolvedSpec["paths"]): ResolvedSpec {
+  return {
+    info: {
+      title: "Test API",
+      version: "1.0.0",
+    },
+    servers: [{ url: "https://api.test" }],
+    paths,
+    components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer",
+        },
+      },
+    },
+    security: [{ BearerAuth: [] }],
+  };
+}
+
+function pathParam(name: string) {
+  return {
+    name,
+    in: "path" as const,
+    required: true,
+    description: `${name} parameter`,
+    schema: {
+      type: "string" as const,
+    },
+  };
+}

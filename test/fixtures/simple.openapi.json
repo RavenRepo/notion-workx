@@ -1,0 +1,109 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Simple CRM",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.simple.test"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "parameters": {
+      "CustomerId": {
+        "name": "customer_id",
+        "in": "path",
+        "required": true,
+        "description": "Customer identifier",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "CreateCustomer": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Customer email"
+          },
+          "name": {
+            "type": "string",
+            "description": "Customer display name"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/customers/{customer_id}": {
+      "get": {
+        "operationId": "get_customer",
+        "summary": "Get customer",
+        "description": "Fetch a customer by ID.",
+        "tags": ["customers"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerId"
+          },
+          {
+            "name": "expand",
+            "in": "query",
+            "required": false,
+            "description": "Fields to expand",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "delete_customer",
+        "summary": "Delete customer",
+        "description": "Delete a customer by ID.",
+        "tags": ["customers"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerId"
+          }
+        ]
+      }
+    },
+    "/customers": {
+      "post": {
+        "operationId": "create_customer",
+        "summary": "Create customer",
+        "description": "Create a new customer.",
+        "tags": ["customers"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomer"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
