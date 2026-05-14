@@ -39,8 +39,8 @@ v1 ships with correct behavior, not broad but broken behavior.
 
 **IN SCOPE — v1**
 - OpenAPI 3.x (3.0.x and 3.1.x) specifications
-- REST APIs with JSON request/response bodies
-- Path parameters, query parameters, header parameters, requestBody (application/json)
+- REST APIs with JSON and `application/x-www-form-urlencoded` request bodies
+- Path parameters, query parameters, header parameters, requestBody (`application/json` and `application/x-www-form-urlencoded`)
 - Auth patterns: Bearer token, API Key (header), API Key (query param)
 - `$ref` resolution within the same document (local refs)
 - `allOf` merging (merge all schemas into one flat object)
@@ -68,7 +68,7 @@ worker.tool("getCustomerById", {
   description: "Fetches a single customer record by their unique ID.",
   schema: j.object({
     customerId: j.string().describe("The customer's unique identifier"),
-    expand: j.array(j.string()).describe("Fields to expand in the response").optional(),
+    expand: j.array(j.string()).nullable().describe("Fields to expand in the response"),
   }),
   execute: async ({ customerId, expand }, { secrets }) => {
     const url = new URL(`${BASE_URL}/customers/${customerId}`);
@@ -202,6 +202,9 @@ export interface RequestBody {
   required?: boolean;
   content: {
     'application/json'?: {
+      schema?: OASSchema;
+    };
+    'application/x-www-form-urlencoded'?: {
       schema?: OASSchema;
     };
     [key: string]: unknown;  // other content types we ignore
@@ -451,7 +454,7 @@ export function buildTools(spec: ResolvedSpec, config: WorxConfig): EndpointResu
 1. **Skip check**: If `operation['x-worx-skip'] === true`, push `SkippedEndpoint` with reason "x-worx-skip flag set".
 2. **Deprecation check**: If `operation.deprecated === true`, still generate the tool but set `deprecated: true` — the template will add a `@deprecated` JSDoc comment.
 3. **Tag filter**: If `config.filter` is non-empty, skip operations whose `tags` array has no overlap with `config.filter`.
-4. **Skip unsupported content types**: If `requestBody` exists but has no `application/json` content key, push `SkippedEndpoint` with reason "Non-JSON requestBody (multipart, binary, etc.)".
+4. **Skip unsupported content types**: If `requestBody` exists but has neither `application/json` nor `application/x-www-form-urlencoded`, push `SkippedEndpoint` with reason "Unsupported requestBody content type (multipart, binary, etc.)".
 5. **Merge parameters**: Combine path-level `parameters` (from the `PathItem`) and operation-level `parameters`. Operation-level takes precedence (deduplicate by `name` + `in`).
 6. **Filter out cookie params**: Skip cookie parameters (not useful in Worker context). Log a warning listing the skipped param names.
 7. **Build `ToolParam[]`**: Call `mapParameter` for each non-cookie parameter, then `mapRequestBody` for the requestBody if present.
@@ -515,7 +518,7 @@ worker.tool("{name}", {
   description: "{description}",
   schema: j.object({
     {for each required param}: {camelName}: {jType}().describe("{description}"),
-    {for each optional param}: {camelName}: {jType}().describe("{description}").optional(),
+    {for each optional param}: {camelName}: {jType}().nullable().describe("{description}"),
   }),
   execute: async ({ {paramNames} }, { secrets }) => {
     {URL building block}
@@ -630,7 +633,7 @@ const body = JSON.stringify({
   },
   "filter": [],
   "skippedEndpoints": [
-    { "method": "POST", "path": "/files/upload", "reason": "Non-JSON requestBody" }
+    { "method": "POST", "path": "/files/upload", "reason": "Unsupported requestBody content type" }
   ]
 }
 ```
@@ -988,7 +991,7 @@ Test 1: simple GET with path param → generated TypeScript compiles without err
 Test 2: POST with JSON body → body block emitted in execute function
 Test 3: bearer auth → Authorization: Bearer ${secrets.API_KEY} in headers
 Test 4: apikey_header auth → correct header name and secret key
-Test 5: optional param → .optional() appended in schema, undefined guard in URL building
+Test 5: optional param → .nullable() appended in schema, undefined guard in URL building
 Test 6: deprecated tool → @deprecated JSDoc comment emitted
 Test 7: toolCount in worxConfig matches number of ToolDefinitions
 Test 8: .env.example contains correct secret name
@@ -1040,7 +1043,7 @@ Use when you encounter an API you need to call but no Worker tools exist for it 
 - Requires worx CLI installed: npm install -g worx
 - Requires ntn CLI installed: npm install -g ntn
 - Requires NOTION_WORKER_TOKEN in environment
-- Only works for OpenAPI 3.x REST APIs with JSON bodies
+- Only works for OpenAPI 3.x REST APIs with JSON or form-encoded bodies
 - OAuth2 APIs need manual token setup first
 
 ## Example
@@ -1103,8 +1106,8 @@ Add this section verbatim to the root `README.md`:
 ```
 ## v1 Scope
 
-WorX v1 is optimized for OpenAPI 3.x REST APIs with standard JSON bodies and common
-auth patterns. The following are known limitations in v1:
+WorX v1 is optimized for OpenAPI 3.x REST APIs with standard JSON/form-encoded bodies
+and common auth patterns. The following are known limitations in v1:
 
 - **Remote $refs**: External file or URL $refs are not resolved. Local $refs (within
   the same document) work correctly.
@@ -1112,6 +1115,9 @@ auth patterns. The following are known limitations in v1:
   handle the OAuth flow and pass the resulting token as your secret.
 - **File uploads**: Endpoints with multipart/form-data or binary request bodies are
   skipped. They appear in worx.config.json > skippedEndpoints.
+- **Large optional parameter sets**: Operations with many optional parameters expose
+  an `optionalParamsJson` string for optional values to stay compatible with Notion
+  Workers' strict schema requirements.
 - **Deeply nested schemas**: Object properties nested more than one level deep are
   emitted as a JSON string parameter with a description of the expected shape.
 - **oneOf with 3+ divergent schemas**: The first schema is used. A description note

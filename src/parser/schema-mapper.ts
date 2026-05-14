@@ -21,13 +21,13 @@ export function mapParameter(param: Parameter): ToolParam {
 }
 
 export function mapRequestBody(body: RequestBody): ToolParam[] {
-  const jsonContent = body.content["application/json"];
-  if (!jsonContent?.schema) {
+  const content = body.content["application/json"] ?? body.content["application/x-www-form-urlencoded"];
+  if (!content?.schema) {
     return [
       {
         name: "body",
         type: "string",
-        description: "Request body payload. Note: non-JSON content type could not be mapped.",
+        description: "Request body payload. Note: content type could not be mapped.",
         required: Boolean(body.required),
         location: "body",
         originalName: "body",
@@ -36,7 +36,7 @@ export function mapRequestBody(body: RequestBody): ToolParam[] {
     ];
   }
 
-  const schema = normalizeCompositions(jsonContent.schema);
+  const schema = normalizeCompositions(content.schema);
   const properties = schema.properties ?? {};
   const propertyEntries = Object.entries(properties);
 

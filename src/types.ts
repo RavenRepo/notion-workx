@@ -58,6 +58,9 @@ export interface RequestBody {
     "application/json"?: {
       schema?: OASSchema;
     };
+    "application/x-www-form-urlencoded"?: {
+      schema?: OASSchema;
+    };
     [key: string]: unknown;
   };
 }
@@ -108,6 +111,7 @@ export interface ToolDefinition {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   pathTemplate: string;
   params: ToolParam[];
+  requestContentType?: "application/json" | "application/x-www-form-urlencoded";
   auth: AuthConfig;
   tags: string[];
   deprecated: boolean;

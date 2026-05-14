@@ -38,4 +38,11 @@ describe("loadSpec", () => {
     expect(parameter?.name).toBe("customer_id");
     expect(parameter?.schema?.type).toBe("string");
   });
+
+  it("loads specs that contain circular local schema refs", async () => {
+    const spec = await loadSpec(path.join(fixturesDir, "circular.openapi.json"));
+    const schema = spec.paths["/nodes"]?.post?.requestBody?.content["application/json"]?.schema;
+
+    expect(schema?.$ref).toBe("#/components/schemas/Node");
+  });
 });
