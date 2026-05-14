@@ -8,7 +8,7 @@ export async function deployWorker(outputDir: string): Promise<string> {
     execSync("ntn --version", { stdio: "pipe" });
   } catch {
     throw new Error(
-      "ntn CLI not found. Install it with: npm install -g @notionhq/workers-cli\n" +
+      "ntn CLI not found. Install it with: npm install -g ntn\n" +
         `Then run: ntn workers deploy ${absPath}`,
     );
   }

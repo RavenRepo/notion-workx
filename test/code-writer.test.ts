@@ -77,6 +77,19 @@ describe("writeCode", () => {
     expect(files.indexTs).toContain('"X-API-Key": requireSecret("X_API_KEY_KEY")');
   });
 
+  it("documents unsupported OAuth placeholders in generated artifacts", () => {
+    const auth = configAuth("unsupported", "ACCESS_TOKEN");
+    const files = writeCode(output([tool({ auth })], auth), config());
+
+    expect(files.indexTs).toContain(
+      "// OAuth2/OpenID placeholder: replace ACCESS_TOKEN with a token from your OAuth flow.",
+    );
+    expect(files.envExample).toContain(
+      "# OAuth2/OpenID placeholder: set this to a valid access token from your OAuth flow.",
+    );
+    expect(files.readmeMd).toContain("OAuth2/OpenID was detected.");
+  });
+
   it("emits optional params in schema and guards query params", () => {
     const files = writeCode(output([tool({
       params: [

@@ -152,6 +152,7 @@ function writeHeadersBlock(tool: ToolDefinition): string {
       `  ${JSON.stringify(tool.auth.headerName)}: requireSecret(${JSON.stringify(tool.auth.secretName)}),`,
     );
   } else if (tool.auth.type === "unsupported") {
+    lines.push("  // OAuth2/OpenID placeholder: replace ACCESS_TOKEN with a token from your OAuth flow.");
     lines.push(`  "Authorization": \`Bearer \${requireSecret(${JSON.stringify(tool.auth.secretName)})}\`,`);
   }
   lines.push('  "Content-Type": "application/json",');
@@ -217,6 +218,9 @@ function writeEnvExample(output: GeneratorOutput): string {
     "",
   ];
 
+  if (output.auth.type === "unsupported") {
+    lines.push("# OAuth2/OpenID placeholder: set this to a valid access token from your OAuth flow.");
+  }
   if (output.auth.secretName) {
     lines.push(`${output.auth.secretName}=your_${output.auth.secretName.toLowerCase()}_here`, "");
   }
@@ -255,7 +259,15 @@ function writeReadme(output: GeneratorOutput, config: WorxConfig): string {
     toolCount: output.tools.length,
     skippedCount: output.skipped.length,
     specSource: config.specUrl ?? config.specFile ?? "",
+    authWarning: authWarning(output.auth),
   }).trim()}\n`;
+}
+
+function authWarning(auth: ToolDefinition["auth"]): string {
+  if (auth.type === "unsupported") {
+    return "OAuth2/OpenID was detected. This generated Worker sends ACCESS_TOKEN as a bearer token placeholder; replace it with a token produced by your OAuth flow before deploying.";
+  }
+  return "";
 }
 
 function indent(value: string, spaces: number): string {

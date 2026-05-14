@@ -79,6 +79,7 @@ worx generate --spec https://api.example.com/openapi.json --output ./example-wor
 Generate and deploy in one run:
 
 ```bash
+npm install -g ntn
 worx generate --spec https://api.example.com/openapi.json --output ./example-worker --deploy
 ```
 

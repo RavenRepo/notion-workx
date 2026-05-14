@@ -858,7 +858,7 @@ export async function deployWorker(outputDir: string): Promise<string> {
     execSync('ntn --version', { stdio: 'pipe' });
   } catch {
     throw new Error(
-      'ntn CLI not found. Install it with: npm install -g @notionhq/workers-cli\n' +
+      'ntn CLI not found. Install it with: npm install -g ntn\n' +
       'Then run: ntn workers deploy ' + absPath
     );
   }
@@ -1038,7 +1038,7 @@ Use when you encounter an API you need to call but no Worker tools exist for it 
 
 ## Constraints
 - Requires worx CLI installed: npm install -g worx
-- Requires ntn CLI installed: npm install -g @notionhq/workers-cli
+- Requires ntn CLI installed: npm install -g ntn
 - Requires NOTION_WORKER_TOKEN in environment
 - Only works for OpenAPI 3.x REST APIs with JSON bodies
 - OAuth2 APIs need manual token setup first

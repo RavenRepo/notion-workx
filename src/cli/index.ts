@@ -109,7 +109,8 @@ Next steps:
   1. cd ${outputDir}
   2. cp .env.example .env${auth.secretName ? `  (fill in ${auth.secretName})` : ""}
   3. npm install
-  4. ntn workers deploy
+  4. npm install -g ntn  (if ntn is not already available)
+  5. ntn workers deploy
 `);
 }
 
