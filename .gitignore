@@ -1,5 +1,18 @@
+# Dependencies and build artifacts
 node_modules/
 dist/
+coverage/
+
+# OS and logs
 .DS_Store
 *.log
-coverage/
+
+# Local generated worker projects
+my-worker/
+stripe-worker/
+stripe-worker-lite/
+
+# Local runtime/session artifacts
+.omx/
+track.md
+stripe-customers.openapi.json

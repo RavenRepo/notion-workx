@@ -1,0 +1,46 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Circular API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.circular.test"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "Node": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "child": {
+            "$ref": "#/components/schemas/Node"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/nodes": {
+      "post": {
+        "operationId": "create_node",
+        "summary": "Create node",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Node"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

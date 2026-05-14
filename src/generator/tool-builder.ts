@@ -41,8 +41,12 @@ export function buildTools(
         continue;
       }
 
-      if (operation.requestBody && !operation.requestBody.content["application/json"]) {
-        results.push(skipped(method, pathTemplate, "Non-JSON requestBody (multipart, binary, etc.)"));
+      const methodSupportsRequestBody = method === "post" || method === "put" || method === "patch";
+      const requestContentType = methodSupportsRequestBody && operation.requestBody
+        ? supportedRequestContentType(operation.requestBody)
+        : undefined;
+      if (methodSupportsRequestBody && operation.requestBody && !requestContentType) {
+        results.push(skipped(method, pathTemplate, "Unsupported requestBody content type (multipart, binary, etc.)"));
         continue;
       }
 
@@ -54,7 +58,7 @@ export function buildTools(
         return false;
       });
       const params = nonCookieParameters.map(mapParameter);
-      if (operation.requestBody) {
+      if (methodSupportsRequestBody && operation.requestBody) {
         params.push(...mapRequestBody(operation.requestBody));
       }
       const dedupedParams = dedupeParamNames(params);
@@ -73,6 +77,7 @@ export function buildTools(
         method: method.toUpperCase() as ToolDefinition["method"],
         pathTemplate,
         params: dedupedParams,
+        requestContentType,
         auth,
         tags: operation.tags ?? [],
         deprecated: Boolean(operation.deprecated),
@@ -82,6 +87,21 @@ export function buildTools(
   }
 
   return results;
+}
+
+function supportedRequestContentType(
+  requestBody: Operation["requestBody"],
+): ToolDefinition["requestContentType"] | undefined {
+  if (!requestBody) {
+    return undefined;
+  }
+  if (requestBody.content["application/json"]) {
+    return "application/json";
+  }
+  if (requestBody.content["application/x-www-form-urlencoded"]) {
+    return "application/x-www-form-urlencoded";
+  }
+  return undefined;
 }
 
 function matchesFilter(operation: Operation, filter: string[] | undefined): boolean {
@@ -214,6 +234,8 @@ function sanitizeToolName(value: string): string {
 
 const RESERVED_IDENTIFIERS = new Set([
   "BASE_URL",
+  "_optionalParams",
+  "appendParam",
   "await",
   "body",
   "break",
@@ -238,15 +260,19 @@ const RESERVED_IDENTIFIERS = new Set([
   "function",
   "headers",
   "if",
+  "input",
   "implements",
   "import",
   "in",
   "instanceof",
   "interface",
+  "isPlainRecord",
   "let",
   "new",
   "null",
+  "normalizeParamValue",
   "package",
+  "parseOptionalParamsJson",
   "private",
   "protected",
   "public",
@@ -255,6 +281,8 @@ const RESERVED_IDENTIFIERS = new Set([
   "requireSecret",
   "res",
   "static",
+  "optionalParamValue",
+  "optionalParamsJson",
   "super",
   "switch",
   "this",

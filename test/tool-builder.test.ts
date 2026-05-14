@@ -84,8 +84,69 @@ describe("buildTools", () => {
 
     expect(results[0]).toMatchObject({
       skipped: true,
-      reason: "Non-JSON requestBody (multipart, binary, etc.)",
+      reason: "Unsupported requestBody content type (multipart, binary, etc.)",
     });
+  });
+
+  it("generates tools for form-encoded request bodies", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/charges": {
+          post: {
+            operationId: "createCharge",
+            requestBody: {
+              content: {
+                "application/x-www-form-urlencoded": {
+                  schema: {
+                    type: "object",
+                    required: ["amount"],
+                    properties: {
+                      amount: { type: "integer" },
+                      currency: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.requestContentType).toBe("application/x-www-form-urlencoded");
+    expect(tools[0]?.params.map((param) => param.name)).toEqual(["amount", "currency"]);
+  });
+
+  it("ignores GET request bodies from specs that incorrectly include them", () => {
+    const tools = onlyTools(
+      buildTools(specWithPaths({
+        "/customers": {
+          get: {
+            operationId: "listCustomers",
+            parameters: [
+              {
+                name: "limit",
+                in: "query",
+                schema: { type: "integer" },
+              },
+            ],
+            requestBody: {
+              content: {
+                "application/x-www-form-urlencoded": {
+                  schema: {
+                    type: "object",
+                    properties: {},
+                  },
+                },
+              },
+            },
+          },
+        },
+      }), config()),
+    );
+
+    expect(tools[0]?.requestContentType).toBeUndefined();
+    expect(tools[0]?.params.map((param) => param.name)).toEqual(["limit"]);
   });
 
   it("merges path-level and operation-level parameters", () => {

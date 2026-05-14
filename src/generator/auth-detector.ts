@@ -6,9 +6,22 @@ export function detectAuth(spec: ResolvedSpec): AuthConfig {
     return { type: "none", secretName: "" };
   }
 
-  const schemeEntry = findReferencedScheme(securitySchemes, spec.security) ?? Object.entries(securitySchemes)[0];
-  const [_schemeName, scheme] = schemeEntry;
+  let unsupportedAuth: AuthConfig | undefined;
+  for (const [_schemeName, scheme] of candidateSchemes(securitySchemes, spec.security)) {
+    const auth = authFromScheme(scheme);
+    if (!auth) {
+      continue;
+    }
+    if (auth.type !== "unsupported") {
+      return auth;
+    }
+    unsupportedAuth ??= auth;
+  }
 
+  return unsupportedAuth ?? { type: "none", secretName: "" };
+}
+
+function authFromScheme(scheme: SecurityScheme): AuthConfig | undefined {
   if (scheme.type === "http" && scheme.scheme?.toLowerCase() === "bearer") {
     return {
       type: "bearer",
@@ -44,22 +57,30 @@ export function detectAuth(spec: ResolvedSpec): AuthConfig {
     };
   }
 
-  return { type: "none", secretName: "" };
+  return undefined;
 }
 
-function findReferencedScheme(
+function candidateSchemes(
   securitySchemes: Record<string, SecurityScheme>,
   security: ResolvedSpec["security"],
-): [string, SecurityScheme] | undefined {
+): Array<[string, SecurityScheme]> {
+  const candidates: Array<[string, SecurityScheme]> = [];
+  const seen = new Set<string>();
   for (const requirement of security ?? []) {
     for (const schemeName of Object.keys(requirement)) {
       const scheme = securitySchemes[schemeName];
-      if (scheme) {
-        return [schemeName, scheme];
+      if (scheme && !seen.has(schemeName)) {
+        candidates.push([schemeName, scheme]);
+        seen.add(schemeName);
       }
     }
   }
-  return undefined;
+  for (const [schemeName, scheme] of Object.entries(securitySchemes)) {
+    if (!seen.has(schemeName)) {
+      candidates.push([schemeName, scheme]);
+    }
+  }
+  return candidates;
 }
 
 function toScreamingSnake(value: string): string {

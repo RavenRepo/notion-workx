@@ -57,7 +57,42 @@ describe("writeCode", () => {
 
     expect(files.indexTs).toContain("const requestBody = JSON.stringify");
     expect(files.indexTs).toContain('"email": email');
-    expect(files.indexTs).toContain('...(name !== undefined ? { "name": name } : {})');
+    expect(files.indexTs).toContain('...(name !== undefined && name !== null && name !== "" ? { "name": name } : {})');
+  });
+
+  it("emits a form-encoded body block for form request bodies", () => {
+    const files = writeCode(output([tool({
+      name: "createCharge",
+      method: "POST",
+      pathTemplate: "/charges",
+      requestContentType: "application/x-www-form-urlencoded",
+      params: [
+        {
+          name: "amount",
+          type: "number",
+          description: "Amount",
+          required: true,
+          location: "body",
+          originalName: "amount",
+          deprecated: false,
+        },
+        {
+          name: "currency",
+          type: "string",
+          description: "Currency",
+          required: false,
+          location: "body",
+          originalName: "currency",
+          deprecated: false,
+        },
+      ],
+    })]), config());
+
+    expect(() => assertTypeScriptCompiles(files.indexTs)).not.toThrow();
+    expect(files.indexTs).toContain('"Content-Type": "application/x-www-form-urlencoded"');
+    expect(files.indexTs).toContain("const requestBody = new URLSearchParams();");
+    expect(files.indexTs).toContain('appendParam(requestBody, "amount", amount);');
+    expect(files.indexTs).toContain('appendParam(requestBody, "currency", currency);');
   });
 
   it("emits bearer auth headers", () => {
@@ -105,14 +140,106 @@ describe("writeCode", () => {
       ],
     })]), config());
 
-    expect(files.indexTs).toContain('limit: j.number().describe("Limit")');
-    expect(files.indexTs).toContain('if (limit !== undefined) url.searchParams.set("limit", String(limit));');
+    expect(files.indexTs).toContain("schema: j.object({");
+    expect(files.indexTs).toContain('limit: j.number().nullable().describe("Limit")');
+    expect(files.indexTs).toContain(
+      'appendParam(url.searchParams, "limit", limit);',
+    );
+  });
+
+  it("serializes arrays and structured values with bracket notation", () => {
+    const files = writeCode(output([tool({
+      params: [
+        {
+          name: "created",
+          type: "object",
+          description: "Created range",
+          required: false,
+          location: "query",
+          originalName: "created",
+          deprecated: false,
+        },
+        {
+          name: "expand",
+          type: "array",
+          itemType: "string",
+          description: "Expand fields",
+          required: false,
+          location: "query",
+          originalName: "expand",
+          deprecated: false,
+        },
+      ],
+    })]), config());
+
+    expect(files.indexTs).toContain("function appendParam(params: URLSearchParams");
+    expect(files.indexTs).toContain("appendParam(url.searchParams, \"created\", created);");
+    expect(files.indexTs).toContain("appendParam(url.searchParams, \"expand\", expand);");
+    expect(files.indexTs).not.toContain("String(expand)");
+  });
+
+  it("uses optionalParamsJson instead of requiring every optional field for large optional sets", () => {
+    const optionalParams = Array.from({ length: 8 }, (_, index) => {
+      const paramNumber = index + 1;
+      return {
+        name: `filter${paramNumber}`,
+        type: "string" as const,
+        description: `Filter ${paramNumber}`,
+        required: false,
+        location: "query" as const,
+        originalName: `filter_${paramNumber}`,
+        deprecated: false,
+      };
+    });
+    const files = writeCode(output([tool({
+      params: [
+        {
+          name: "customerId",
+          type: "string",
+          description: "Customer ID",
+          required: true,
+          location: "path",
+          originalName: "customer_id",
+          deprecated: false,
+        },
+        ...optionalParams,
+      ],
+      pathTemplate: "/customers/{customer_id}",
+    })]), config());
+
+    expect(() => assertTypeScriptCompiles(files.indexTs)).not.toThrow();
+    expect(files.indexTs).toContain("optionalParamsJson");
+    expect(files.indexTs).toContain("parseOptionalParamsJson(optionalParamsJson)");
+    expect(files.indexTs).toContain(
+      'appendParam(url.searchParams, "filter_8", optionalParamValue(_optionalParams, "filter8", "filter_8"));',
+    );
+    expect(countOccurrences(files.indexTs, "j.object({")).toBeLessThan(10);
   });
 
   it("emits deprecated comments", () => {
     const files = writeCode(output([tool({ deprecated: true })]), config());
 
     expect(files.indexTs).toContain("@deprecated This endpoint is marked deprecated in the spec.");
+  });
+
+  it("does not include body params for GET tool schemas", () => {
+    const files = writeCode(output([tool({
+      method: "GET",
+      params: [
+        {
+          name: "bodyParam",
+          type: "string",
+          description: "Request body payload",
+          required: false,
+          location: "body",
+          originalName: "body_param",
+          deprecated: false,
+        },
+      ],
+    })]), config());
+
+    expect(files.indexTs).not.toContain("bodyParam:");
+    expect(files.indexTs).toContain("execute: async (_input) =>");
   });
 
   it("writes matching tool counts to worx.config.json", () => {
@@ -126,6 +253,13 @@ describe("writeCode", () => {
     const files = writeCode(output([tool()], configAuth("bearer", "API_KEY")), config());
 
     expect(files.envExample).toContain("API_KEY=your_api_key_here");
+  });
+
+  it("allows the generated base URL to be overridden by env", () => {
+    const files = writeCode(output([tool()]), config());
+
+    expect(files.indexTs).toContain('const BASE_URL = process.env.WORX_BASE_URL ?? "https://api.test";');
+    expect(files.envExample).toContain("# WORX_BASE_URL=https://api.test");
   });
 });
 
@@ -185,7 +319,7 @@ function assertTypeScriptCompiles(source: string): void {
   writeFileSync(path.join(sourceDir, "index.ts"), source, "utf8");
   writeFileSync(
     path.join(workerTypesDir, "index.d.ts"),
-    "export interface Schema { describe(value: string): Schema; nullable(): Schema; }\nexport const j: { string(): Schema; number(): Schema; boolean(): Schema; array(value: Schema): Schema; object(value: Record<string, Schema>): Schema; };\nexport class Worker { tool(name: string, definition: { execute: (input: any, context: unknown) => unknown; [key: string]: unknown }): void; }\n",
+    "export interface Schema { describe(value: string): Schema; nullable(): Schema; }\nexport const j: { string(): Schema; number(): Schema; boolean(): Schema; array(value: Schema): Schema; object(value: Record<string, Schema>): Schema; anyOf(...values: Schema[]): Schema; };\nexport class Worker { tool(name: string, definition: { execute: (input: any, context: unknown) => unknown; [key: string]: unknown }): void; }\n",
     "utf8",
   );
   writeFileSync(
@@ -209,4 +343,8 @@ function assertTypeScriptCompiles(source: string): void {
         .join("\n"),
     );
   }
+}
+
+function countOccurrences(value: string, pattern: string): number {
+  return value.split(pattern).length - 1;
 }

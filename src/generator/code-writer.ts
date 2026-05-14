@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { GeneratorOutput, ToolDefinition, ToolParam, WorxConfig } from "../types";
 
+const OPTIONAL_SCHEMA_VARIANT_LIMIT = 7;
+const OPTIONAL_PARAMS_JSON_BASE_NAME = "optionalParamsJson";
+
 export interface WriterOutput {
   indexTs: string;
   envExample: string;
@@ -27,7 +30,7 @@ import { Worker, j } from "@notionhq/workers";
 
 const worker = new Worker();
 
-const BASE_URL = ${JSON.stringify(output.baseUrl)};
+const BASE_URL = process.env.WORX_BASE_URL ?? ${JSON.stringify(output.baseUrl)};
 
 function requireSecret(name: string): string {
   const value = process.env[name];
@@ -37,6 +40,78 @@ function requireSecret(name: string): string {
   return value;
 }
 
+function appendParam(params: URLSearchParams, key: string, value: unknown): void {
+  const normalized = normalizeParamValue(value);
+  if (normalized === undefined || normalized === null || normalized === "") {
+    return;
+  }
+
+  if (Array.isArray(normalized)) {
+    normalized.forEach((item, index) => {
+      const itemValue = normalizeParamValue(item);
+      const itemKey = isPlainRecord(itemValue) ? \`\${key}[\${index}]\` : \`\${key}[]\`;
+      appendParam(params, itemKey, itemValue);
+    });
+    return;
+  }
+
+  if (isPlainRecord(normalized)) {
+    for (const [childKey, childValue] of Object.entries(normalized)) {
+      appendParam(params, \`\${key}[\${childKey}]\`, childValue);
+    }
+    return;
+  }
+
+  params.append(key, String(normalized));
+}
+
+function normalizeParamValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (
+    !((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]")))
+  ) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseOptionalParamsJson(value: unknown): Record<string, unknown> {
+  if (value === undefined || value === null || value === "") {
+    return {};
+  }
+
+  const normalized = normalizeParamValue(value);
+  if (isPlainRecord(normalized)) {
+    return normalized;
+  }
+
+  throw new Error("optionalParamsJson must be a JSON object string.");
+}
+
+function optionalParamValue(params: Record<string, unknown>, name: string, originalName: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(params, name)) {
+    return params[name];
+  }
+  if (Object.prototype.hasOwnProperty.call(params, originalName)) {
+    return params[originalName];
+  }
+  return undefined;
+}
+
 ${blocks}
 
 export default worker;
@@ -44,18 +119,32 @@ export default worker;
 }
 
 function writeToolBlock(tool: ToolDefinition): string {
-  const schemaFields = tool.params.map(writeSchemaField).join("\n");
-  const paramNames = tool.params.map((param) => param.name);
+  const toolParams = paramsUsedByMethod(tool);
+  const optionalParams = toolParams.filter((param) => !param.required);
+  const usesOptionalParamsJson = usesOptionalParamsJsonFallback(toolParams);
+  const optionalParamsJsonName = usesOptionalParamsJson ? uniqueName(OPTIONAL_PARAMS_JSON_BASE_NAME, toolParams) : undefined;
+  const optionalParamsLocalName = usesOptionalParamsJson ? uniqueName("_optionalParams", toolParams) : undefined;
+  const schemaExpression = writeSchemaExpression(toolParams, optionalParamsJsonName);
+  const paramNames = usesOptionalParamsJson
+    ? [...toolParams.filter((param) => param.required).map((param) => param.name), optionalParamsJsonName!]
+    : toolParams.map((param) => param.name);
   const executeInput =
     paramNames.length > 0 ? `{ ${paramNames.join(", ")} }` : "_input";
-  const urlBlock = writeUrlBlock(tool);
-  const headersBlock = writeHeadersBlock(tool);
-  const bodyBlock = writeBodyBlock(tool);
+  const optionalParamsCast =
+    usesOptionalParamsJson && optionalParamsJsonName && optionalParamsLocalName
+      ? `const ${optionalParamsLocalName} = parseOptionalParamsJson(${optionalParamsJsonName});`
+      : "";
+  const urlBlock = writeUrlBlock(tool, optionalParamsLocalName);
+  const headersBlock = writeHeadersBlock(tool, optionalParamsLocalName);
+  const bodyBlock = writeBodyBlock(tool, optionalParamsLocalName);
   const fetchBlock = writeFetchBlock(tool, Boolean(bodyBlock));
+  const description = usesOptionalParamsJson && optionalParamsJsonName
+    ? descriptionWithOptionalParamsJson(tool.description, optionalParamsJsonName, optionalParams)
+    : tool.description;
   const commentLines = [
     "/**",
     ` * ${tool.title}`,
-    ` * ${tool.description}`,
+    ` * ${description.replace(/\n/g, "\n * ")}`,
     ...(tool.deprecated ? [" * @deprecated This endpoint is marked deprecated in the spec."] : []),
     " */",
   ].join("\n");
@@ -63,12 +152,10 @@ function writeToolBlock(tool: ToolDefinition): string {
   return `${commentLines}
 worker.tool(${JSON.stringify(tool.name)}, {
   title: ${JSON.stringify(tool.title)},
-  description: ${JSON.stringify(tool.description)},
-  schema: j.object({
-${schemaFields || "    // No parameters defined"}
-  }),
+  description: ${JSON.stringify(description)},
+  schema: ${schemaExpression},
   execute: async (${executeInput}) => {
-${indent(urlBlock, 4)}
+${optionalParamsCast ? `${indent(optionalParamsCast, 4)}\n` : ""}${indent(urlBlock, 4)}
 ${indent(headersBlock, 4)}
 ${bodyBlock ? `${indent(bodyBlock, 4)}\n` : ""}${indent(fetchBlock, 4)}
     if (!res.ok) {
@@ -80,9 +167,56 @@ ${bodyBlock ? `${indent(bodyBlock, 4)}\n` : ""}${indent(fetchBlock, 4)}
 });`;
 }
 
-function writeSchemaField(param: ToolParam): string {
-  const expression = `${jType(param)}.describe(${JSON.stringify(paramDescription(param))})`;
-  return `    ${param.name}: ${expression},`;
+function writeSchemaExpression(params: ToolParam[], optionalParamsJsonName: string | undefined): string {
+  if (optionalParamsJsonName) {
+    return writeOptionalParamsJsonSchema(params, optionalParamsJsonName);
+  }
+
+  return `j.object({
+${params.map((param) => writeSchemaField(param, 4)).join("\n") || "    // No parameters defined"}
+  })`;
+}
+
+function writeOptionalParamsJsonSchema(params: ToolParam[], optionalParamsJsonName: string): string {
+  const requiredParams = params.filter((param) => param.required);
+  const optionalParams = params.filter((param) => !param.required);
+  return `j.object({
+${[...requiredParams, optionalParamsJsonParam(optionalParamsJsonName, optionalParams)].map((param) => writeSchemaField(param, 4)).join("\n")}
+  })`;
+}
+
+function usesOptionalParamsJsonFallback(params: ToolParam[]): boolean {
+  return params.filter((param) => !param.required).length > OPTIONAL_SCHEMA_VARIANT_LIMIT;
+}
+
+function writeSchemaField(param: ToolParam, spaces: number): string {
+  const base = jType(param);
+  const expression = `${param.required ? base : `${base}.nullable()`}.describe(${JSON.stringify(paramDescription(param))})`;
+  return `${" ".repeat(spaces)}${param.name}: ${expression},`;
+}
+
+function optionalParamsJsonParam(name: string, optionalParams: ToolParam[]): ToolParam {
+  return {
+    name,
+    type: "string",
+    description: `JSON object string containing optional parameters. Keys may use generated camelCase names or original API names. Supported generated keys: ${optionalParamKeys(optionalParams)}.`,
+    required: false,
+    location: "body",
+    originalName: name,
+    deprecated: false,
+  };
+}
+
+function optionalParamKeys(optionalParams: ToolParam[]): string {
+  return optionalParams.map((param) => param.name).join(", ");
+}
+
+function descriptionWithOptionalParamsJson(
+  description: string,
+  optionalParamsJsonName: string,
+  optionalParams: ToolParam[],
+): string {
+  return `${description}\n\nOptional parameters for this operation are accepted as a JSON object string in \`${optionalParamsJsonName}\`. Supported optional keys: ${optionalParamKeys(optionalParams)}.`;
 }
 
 function jType(param: ToolParam): string {
@@ -120,7 +254,7 @@ function paramDescription(param: ToolParam): string {
   return param.description;
 }
 
-function writeUrlBlock(tool: ToolDefinition): string {
+function writeUrlBlock(tool: ToolDefinition, optionalParamsLocalName: string | undefined): string {
   const pathParams = tool.params.filter((param) => param.location === "path");
   const queryParams = tool.params.filter((param) => param.location === "query");
   const replacementLines = pathParams
@@ -132,18 +266,14 @@ function writeUrlBlock(tool: ToolDefinition): string {
       : `const url = new URL(\`${"${BASE_URL}"}${tool.pathTemplate}\`);`;
   const queryLines = queryParams
     .map((param) =>
-      param.required
-        ? `url.searchParams.set(${JSON.stringify(param.originalName)}, String(${param.name}));`
-        : `if (${param.name} !== undefined) url.searchParams.set(${JSON.stringify(
-            param.originalName,
-          )}, String(${param.name}));`,
+      `appendParam(url.searchParams, ${JSON.stringify(param.originalName)}, ${valueExpression(param, optionalParamsLocalName)});`,
     )
     .join("\n");
 
   return [urlLine, queryLines].filter(Boolean).join("\n");
 }
 
-function writeHeadersBlock(tool: ToolDefinition): string {
+function writeHeadersBlock(tool: ToolDefinition, optionalParamsLocalName: string | undefined): string {
   const lines = ['const headers: Record<string, string> = {'];
   if (tool.auth.type === "bearer") {
     lines.push(`  "Authorization": \`Bearer \${requireSecret(${JSON.stringify(tool.auth.secretName)})}\`,`);
@@ -155,7 +285,7 @@ function writeHeadersBlock(tool: ToolDefinition): string {
     lines.push("  // OAuth2/OpenID placeholder: replace ACCESS_TOKEN with a token from your OAuth flow.");
     lines.push(`  "Authorization": \`Bearer \${requireSecret(${JSON.stringify(tool.auth.secretName)})}\`,`);
   }
-  lines.push('  "Content-Type": "application/json",');
+  lines.push(`  "Content-Type": ${JSON.stringify(contentTypeHeader(tool))},`);
   lines.push("};");
 
   const postHeaderLines = tool.params
@@ -163,7 +293,7 @@ function writeHeadersBlock(tool: ToolDefinition): string {
     .map((param) =>
       param.required
         ? `headers[${JSON.stringify(param.originalName)}] = String(${param.name});`
-        : `if (${param.name} !== undefined) headers[${JSON.stringify(param.originalName)}] = String(${param.name});`,
+        : `if (${hasOptionalValue(param, valueExpression(param, optionalParamsLocalName))}) headers[${JSON.stringify(param.originalName)}] = String(${valueExpression(param, optionalParamsLocalName)});`,
     );
 
   if (tool.auth.type === "apikey_query" && tool.auth.queryParamName) {
@@ -177,7 +307,7 @@ function writeHeadersBlock(tool: ToolDefinition): string {
   return [lines.join("\n"), ...postHeaderLines].join("\n");
 }
 
-function writeBodyBlock(tool: ToolDefinition): string {
+function writeBodyBlock(tool: ToolDefinition, optionalParamsLocalName: string | undefined): string {
   if (!["POST", "PUT", "PATCH"].includes(tool.method)) {
     return "";
   }
@@ -187,10 +317,19 @@ function writeBodyBlock(tool: ToolDefinition): string {
     return "";
   }
 
+  if (tool.requestContentType === "application/x-www-form-urlencoded") {
+    const entries = bodyParams.map((param) =>
+      `appendParam(requestBody, ${JSON.stringify(param.originalName)}, ${valueExpression(param, optionalParamsLocalName)});`,
+    );
+
+    return `const requestBody = new URLSearchParams();
+${entries.join("\n")}`;
+  }
+
   const entries = bodyParams.map((param) =>
     param.required
       ? `${JSON.stringify(param.originalName)}: ${param.name},`
-      : `...(${param.name} !== undefined ? { ${JSON.stringify(param.originalName)}: ${param.name} } : {}),`,
+      : `...(${hasOptionalValue(param, valueExpression(param, optionalParamsLocalName))} ? { ${JSON.stringify(param.originalName)}: ${valueExpression(param, optionalParamsLocalName)} } : {}),`,
   );
 
   return `const requestBody = JSON.stringify({
@@ -209,6 +348,35 @@ function writeFetchBlock(tool: ToolDefinition, hasBody: boolean): string {
   }
   lines.push("});");
   return lines.join("\n");
+}
+
+function contentTypeHeader(tool: ToolDefinition): string {
+  if (tool.requestContentType === "application/x-www-form-urlencoded") {
+    return "application/x-www-form-urlencoded";
+  }
+  return "application/json";
+}
+
+function hasOptionalValue(param: ToolParam, value = param.name): string {
+  const base = `${value} !== undefined && ${value} !== null`;
+  if (param.type === "string" || param.type === "object") {
+    return `${base} && ${value} !== ""`;
+  }
+  return base;
+}
+
+function valueExpression(param: ToolParam, optionalParamsLocalName: string | undefined): string {
+  if (optionalParamsLocalName && !param.required) {
+    return `optionalParamValue(${optionalParamsLocalName}, ${JSON.stringify(param.name)}, ${JSON.stringify(param.originalName)})`;
+  }
+  return param.name;
+}
+
+function paramsUsedByMethod(tool: ToolDefinition): ToolParam[] {
+  if (!["POST", "PUT", "PATCH"].includes(tool.method)) {
+    return tool.params.filter((param) => param.location !== "body");
+  }
+  return tool.params;
 }
 
 function writeEnvExample(output: GeneratorOutput): string {
@@ -236,6 +404,7 @@ function writeWorxConfig(output: GeneratorOutput, config: WorxConfig): string {
       specSource: config.specUrl ?? config.specFile ?? "",
       apiTitle: output.apiTitle,
       apiVersion: output.apiVersion,
+      workerName: generatedWorkerName(output.apiTitle),
       toolCount: output.tools.length,
       skippedCount: output.skipped.length,
       auth: output.auth,
@@ -256,6 +425,8 @@ function writeReadme(output: GeneratorOutput, config: WorxConfig): string {
   const template = Handlebars.compile(readFileSync(templatePath, "utf8"), { noEscape: true });
   return `${template({
     ...output,
+    tools: output.tools.map(toolReadmeView),
+    workerName: generatedWorkerName(output.apiTitle),
     toolCount: output.tools.length,
     skippedCount: output.skipped.length,
     specSource: config.specUrl ?? config.specFile ?? "",
@@ -268,6 +439,50 @@ function authWarning(auth: ToolDefinition["auth"]): string {
     return "OAuth2/OpenID was detected. This generated Worker sends ACCESS_TOKEN as a bearer token placeholder; replace it with a token produced by your OAuth flow before deploying.";
   }
   return "";
+}
+
+function toolReadmeView(tool: ToolDefinition): ToolDefinition {
+  const toolParams = paramsUsedByMethod(tool);
+  if (!usesOptionalParamsJsonFallback(toolParams)) {
+    return tool;
+  }
+
+  const optionalParams = toolParams.filter((param) => !param.required);
+  const optionalParamsJsonName = uniqueName(OPTIONAL_PARAMS_JSON_BASE_NAME, toolParams);
+  return {
+    ...tool,
+    description: descriptionWithOptionalParamsJson(tool.description, optionalParamsJsonName, optionalParams),
+    params: [
+      ...toolParams.filter((param) => param.required),
+      optionalParamsJsonParam(optionalParamsJsonName, optionalParams),
+    ],
+  };
+}
+
+function generatedWorkerName(apiTitle: string): string {
+  return `${toKebabCase(apiTitle)}-worker`;
+}
+
+function toKebabCase(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "api"
+  );
+}
+
+function uniqueName(base: string, params: ToolParam[]): string {
+  const used = new Set(params.map((param) => param.name));
+  if (!used.has(base)) {
+    return base;
+  }
+
+  let suffix = 2;
+  while (used.has(`${base}${suffix}`)) {
+    suffix += 1;
+  }
+  return `${base}${suffix}`;
 }
 
 function indent(value: string, spaces: number): string {

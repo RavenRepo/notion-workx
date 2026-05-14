@@ -13,7 +13,7 @@ export async function loadSpec(source: string): Promise<ResolvedSpec> {
   try {
     const api = (await dereference(source, {
       dereference: {
-        circular: false,
+        circular: "ignore",
       },
       resolve: {
         external: false,

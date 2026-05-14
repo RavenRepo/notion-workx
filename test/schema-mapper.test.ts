@@ -117,6 +117,26 @@ describe("schema mapper", () => {
     expect(params.map((param) => param.name)).toEqual(["email", "active"]);
   });
 
+  it("maps form-encoded object request bodies to one param per property", () => {
+    const params = mapRequestBody({
+      content: {
+        "application/x-www-form-urlencoded": {
+          schema: {
+            type: "object",
+            required: ["amount"],
+            properties: {
+              amount: { type: "integer" },
+              currency: { type: "string" },
+            },
+          },
+        },
+      },
+    });
+
+    expect(params.map((param) => param.name)).toEqual(["amount", "currency"]);
+    expect(params.find((param) => param.name === "amount")?.required).toBe(true);
+  });
+
   it("returns a body string param for non-JSON content", () => {
     const params = mapRequestBody({
       content: {
