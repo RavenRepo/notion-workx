@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use WorX in your work, please cite it as below."
+title: "WorX: generate Notion Worker tools from OpenAPI specs"
+type: software
+authors:
+  - given-names: Amit
+    family-names: Kumar
+    alias: growthperclick
+    website: "https://iamamitkumar.dev"
+repository-code: "https://github.com/RavenRepo/notion-workx"
+url: "https://ravenrepo.github.io/notion-workx/"
+abstract: >-
+  WorX reads an OpenAPI 3.x specification from a URL or file and generates a
+  deployable Notion Worker project in TypeScript, in which every supported
+  endpoint becomes a worker.tool() callable by Notion AI agents.
+keywords:
+  - Notion Workers
+  - OpenAPI
+  - code generation
+  - TypeScript
+  - AI agents
+license: MIT
+version: 1.0.0

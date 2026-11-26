@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorX: generate Notion Worker tools from OpenAPI specs</title>
+  <meta name="description" content="WorX turns any OpenAPI 3.x spec into a deployable Notion Worker: one TypeScript worker.tool() per endpoint, ready for Notion AI agents. Open-source CLI by Amit Kumar.">
+  <meta name="author" content="Amit Kumar">
+  <meta name="google-site-verification" content="g1PCJtyBmYV6DVhuMGis1_F4GsWVHdhJdxbBcy70fHQ">
+  <meta name="keywords" content="Notion Workers, OpenAPI to Notion, Notion AI agents, Notion MCP, worker.tool, OpenAPI code generator, TypeScript, ntn, Amit Kumar, growthperclick">
+  <link rel="canonical" href="https://ravenrepo.github.io/notion-workx/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0f0d17">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="WorX">
+  <meta property="og:title" content="WorX: generate Notion Worker tools from OpenAPI specs">
+  <meta property="og:description" content="One command turns an OpenAPI spec into a deployable Notion Worker, with one tool per endpoint. Open source, by Amit Kumar.">
+  <meta property="og:url" content="https://ravenrepo.github.io/notion-workx/">
+  <meta property="og:image" content="https://ravenrepo.github.io/notion-workx/og.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="WorX: OpenAPI to Notion Worker tools, by Amit Kumar.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@growthperclick">
+  <meta name="twitter:creator" content="@growthperclick">
+  <meta name="twitter:title" content="WorX: generate Notion Worker tools from OpenAPI specs">
+  <meta name="twitter:description" content="One command turns an OpenAPI spec into a deployable Notion Worker, with one tool per endpoint.">
+  <meta name="twitter:image" content="https://ravenrepo.github.io/notion-workx/og.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://iamamitkumar.dev/#person",
+        "name": "Amit Kumar",
+        "alternateName": ["growthperclick", "RavenRepo"],
+        "url": "https://iamamitkumar.dev",
+        "jobTitle": "Founder and AI engineer",
+        "sameAs": [
+          "https://growthperclick.com",
+          "https://github.com/RavenRepo",
+          "https://x.com/growthperclick",
+          "https://www.linkedin.com/in/growthperclick/",
+          "https://peerlist.io/growthperclick",
+          "https://substack.com/@growthperclick",
+          "https://medium.com/@dev.amitkumar"
+        ]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://ravenrepo.github.io/notion-workx/#software",
+        "name": "WorX",
+        "alternateName": "notion-workx",
+        "description": "A CLI that turns OpenAPI 3.x specs into deployable Notion Worker projects: a TypeScript worker with one worker.tool() per supported endpoint, callable by Notion AI agents.",
+        "url": "https://ravenrepo.github.io/notion-workx/",
+        "codeRepository": "https://github.com/RavenRepo/notion-workx",
+        "programmingLanguage": "TypeScript",
+        "runtimePlatform": "Node.js 20+",
+        "license": "https://opensource.org/licenses/MIT",
+        "version": "1.0.0",
+        "keywords": "Notion Workers, OpenAPI, code generation, Notion AI agents, TypeScript CLI",
+        "author": { "@id": "https://iamamitkumar.dev/#person" },
+        "maintainer": { "@id": "https://iamamitkumar.dev/#person" }
+      },
+      {
+        "@type": "WebPage",
+        "@id": "https://ravenrepo.github.io/notion-workx/#webpage",
+        "url": "https://ravenrepo.github.io/notion-workx/",
+        "name": "WorX: generate Notion Worker tools from OpenAPI specs",
+        "about": { "@id": "https://ravenrepo.github.io/notion-workx/#software" },
+        "author": { "@id": "https://iamamitkumar.dev/#person" },
+        "inLanguage": "en"
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://ravenrepo.github.io/notion-workx/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I turn an OpenAPI spec into Notion Worker tools?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Run worx generate --spec <url or path> --output ./worker. WorX writes a TypeScript Notion Worker project in which every supported endpoint becomes a worker.tool(). Deploy it with the Notion CLI (ntn)." }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the difference between WorX and the Notion CLI (ntn)?",
+            "acceptedAnswer": { "@type": "Answer", "text": "ntn handles authentication, building, deploying, running and managing workers. WorX is the generation layer on top: it writes the worker code from your OpenAPI spec automatically." }
+          },
+          {
+            "@type": "Question",
+            "name": "Which OpenAPI features does WorX support?",
+            "acceptedAnswer": { "@type": "Answer", "text": "OpenAPI 3.0 and 3.1 REST APIs with JSON and form-encoded request bodies, path, query and header parameters, bearer and API-key auth, and local $ref resolution. Remote $ref, OAuth2 flows, and multipart, binary or XML-only endpoints are not generated." }
+          },
+          {
+            "@type": "Question",
+            "name": "What if my API has more endpoints than a Notion Worker allows?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Notion currently caps a worker at 100 capabilities. Split a large API into several workers by generating per tag with --filter." }
+          },
+          {
+            "@type": "Question",
+            "name": "Who built WorX?",
+            "acceptedAnswer": { "@type": "Answer", "text": "WorX is built and maintained by Amit Kumar (@growthperclick), a founder and AI engineer who builds open tooling for AI agents." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <style>
+    :root { --bg:#0f0d17; --panel:#19162a; --text:#ece9f7; --muted:#aba5c6; --accent:#a78bfa; --accent2:#5eead4; --line:#2d2848; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+    a { color:#c4b5fd; }
+    main, header, footer { max-width:960px; margin:0 auto; padding:0 20px; }
+    header { padding-top:56px; }
+    .eyebrow { color:var(--accent2); font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:13px; }
+    h1 { font-size:clamp(32px,5vw,52px); line-height:1.1; margin:10px 0 16px; }
+    h2 { font-size:28px; margin:48px 0 12px; }
+    h3 { font-size:19px; margin:20px 0 6px; }
+    .lead { font-size:20px; color:var(--muted); max-width:780px; }
+    .cta { display:flex; gap:12px; flex-wrap:wrap; margin:26px 0 8px; }
+    .btn { display:inline-block; padding:11px 18px; border-radius:10px; text-decoration:none; font-weight:600; border:1px solid var(--line); color:var(--text); background:var(--panel); }
+    .btn.primary { background:var(--accent); color:#160c33; border-color:var(--accent); }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-top:12px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 20px; }
+    pre { background:#0a0812; border:1px solid var(--line); border-radius:12px; padding:16px; overflow-x:auto; font-size:14.5px; line-height:1.5; }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    table { border-collapse:collapse; width:100%; font-size:15.5px; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+    details { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin:10px 0; }
+    summary { cursor:pointer; font-weight:600; }
+    footer { color:var(--muted); padding:40px 20px 60px; border-top:1px solid var(--line); margin-top:56px; }
+    .muted { color:var(--muted); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Open source · TypeScript · MIT · Notion Workers</div>
+  <h1>WorX: generate Notion Worker tools from OpenAPI specs</h1>
+  <p class="lead">Point WorX at an OpenAPI 3.x spec and get a deployable Notion Worker: a TypeScript project in which every supported endpoint is a <code>worker.tool()</code> that Notion AI agents can call.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/RavenRepo/notion-workx">View on GitHub</a>
+    <a class="btn" href="https://github.com/RavenRepo/notion-workx#quick-start">Quick start</a>
+    <a class="btn" href="https://github.com/sponsors/RavenRepo">Sponsor</a>
+  </div>
+</header>
+
+<main>
+<pre><code>worx generate --spec https://api.example.com/openapi.json --output ./my-worker
+cd ./my-worker &amp;&amp; npm install &amp;&amp; npm run deploy:create</code></pre>
+
+  <h2>How it works</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>1. Parse</h3>
+      <p>WorX reads an OpenAPI 3.0 or 3.1 spec from a URL or a file, resolves local <code>$ref</code>s, and detects bearer or API-key auth.</p>
+    </div>
+    <div class="card">
+      <h3>2. Generate</h3>
+      <p>Each supported endpoint becomes a typed <code>worker.tool()</code> with its path, query and header parameters and request body, in a ready-to-build TypeScript worker.</p>
+    </div>
+    <div class="card">
+      <h3>3. Deploy</h3>
+      <p>The generated project deploys with the Notion CLI (<code>ntn</code>). Fill <code>.env</code>, push secrets, and your API is callable from Notion.</p>
+    </div>
+  </div>
+
+  <h2>WorX and the Notion CLI</h2>
+  <table>
+    <thead><tr><th>Tool</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>ntn</code> (Notion CLI)</td><td>Auth, build, deploy, run and manage workers</td></tr>
+      <tr><td><strong>WorX</strong></td><td>Generate the worker code from your OpenAPI spec automatically</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Supported in v1</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Supported</h3>
+      <p>OpenAPI 3.0.x and 3.1.x · JSON and form-encoded bodies · path, query and header parameters · bearer and API-key auth · local <code>$ref</code> · optional parameters, including large optional sets</p>
+    </div>
+    <div class="card">
+      <h3>Not generated</h3>
+      <p>Remote <code>$ref</code> · OAuth2 and OpenID flows (manual token) · multipart, binary and XML-only endpoints · deeply nested and complex <code>oneOf</code>/<code>anyOf</code> schemas are simplified</p>
+    </div>
+  </div>
+
+  <h2>FAQ</h2>
+  <details open><summary>How do I turn an OpenAPI spec into Notion Worker tools?</summary><p>Run <code>worx generate --spec &lt;url or path&gt; --output ./worker</code>. WorX writes a TypeScript Notion Worker project in which every supported endpoint becomes a <code>worker.tool()</code>. Deploy it with the Notion CLI.</p></details>
+  <details><summary>What is the difference between WorX and the Notion CLI (ntn)?</summary><p><code>ntn</code> handles authentication, building, deploying, running and managing workers. WorX is the generation layer on top: it writes the worker code from your OpenAPI spec automatically.</p></details>
+  <details><summary>Which OpenAPI features does WorX support?</summary><p>OpenAPI 3.0 and 3.1 REST APIs with JSON and form-encoded request bodies, path, query and header parameters, bearer and API-key auth, and local <code>$ref</code> resolution. Remote <code>$ref</code>, OAuth2 flows, and multipart, binary or XML-only endpoints are not generated.</p></details>
+  <details><summary>What if my API has more endpoints than a Notion Worker allows?</summary><p>Notion currently caps a worker at 100 capabilities. Split a large API into several workers by generating per tag with <code>--filter</code>.</p></details>
+  <details><summary>Who built WorX?</summary><p>WorX is built and maintained by <a href="https://iamamitkumar.dev">Amit Kumar</a> (<a href="https://x.com/growthperclick">@growthperclick</a>), a founder and AI engineer who builds open tooling for AI agents.</p></details>
+
+  <h2>About the author</h2>
+  <p><a href="https://iamamitkumar.dev">Amit Kumar</a> spent 16 years in growth and go-to-market before building AI agent systems, and builds production agents, MCP tools and the tooling around coding agents. More at <a href="https://growthperclick.com">growthperclick.com</a>.</p>
+  <p>Also by the author: <a href="https://ravenrepo.github.io/agent-guard/">agent-guard</a> (guardrails for AI coding agents) and <a href="https://ravenrepo.github.io/ladder/">ladder</a> (the cheapest LLM that still passes).</p>
+  <p>If WorX saves you time, please consider <a href="https://github.com/sponsors/RavenRepo">sponsoring its development</a>.</p>
+</main>
+
+<footer>
+  <p>WorX is MIT-licensed and not affiliated with Notion Labs. Source: <a href="https://github.com/RavenRepo/notion-workx">github.com/RavenRepo/notion-workx</a> ·
+  Author: <a href="https://iamamitkumar.dev" rel="author">Amit Kumar</a> ·
+  <a href="https://github.com/RavenRepo">GitHub</a> · <a href="https://x.com/growthperclick">X</a> ·
+  <a href="https://www.linkedin.com/in/growthperclick/">LinkedIn</a> · <a href="https://growthperclick.com">growthperclick.com</a></p>
+</footer>
+</body>
+</html>
