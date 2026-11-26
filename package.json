@@ -1,7 +1,34 @@
 {
   "name": "worx",
   "version": "1.0.0",
-  "description": "Generate Notion Worker tools from OpenAPI specs",
+  "description": "Generate Notion Worker tools from OpenAPI specs: one TypeScript worker.tool() per endpoint",
+  "keywords": [
+    "notion",
+    "notion-workers",
+    "notion-api",
+    "openapi",
+    "openapi3",
+    "code-generator",
+    "codegen",
+    "typescript",
+    "cli",
+    "ai-agents",
+    "mcp"
+  ],
+  "homepage": "https://ravenrepo.github.io/notion-workx/",
+  "bugs": {
+    "url": "https://github.com/RavenRepo/notion-workx/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RavenRepo/notion-workx.git"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/RavenRepo"
+  },
+  "license": "MIT",
+  "author": "Amit Kumar (https://iamamitkumar.dev)",
   "main": "dist/cli/index.js",
   "bin": {
     "worx": "dist/cli/index.js"
@@ -14,14 +41,6 @@
     "test": "vitest run",
     "prepublishOnly": "npm run build"
   },
-  "keywords": [
-    "openapi",
-    "notion",
-    "workers",
-    "cli"
-  ],
-  "author": "",
-  "license": "MIT",
   "type": "commonjs",
   "engines": {
     "node": ">=20.0.0"

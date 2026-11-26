@@ -1,4 +1,11 @@
-# WorX
+# WorX: generate Notion Worker tools from OpenAPI specs
+
+[![CI](https://github.com/RavenRepo/notion-workx/actions/workflows/ci.yml/badge.svg)](https://github.com/RavenRepo/notion-workx/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node 20+](https://img.shields.io/badge/node-20%2B-brightgreen.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)
+[![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2.svg?logo=githubsponsors)](https://github.com/sponsors/RavenRepo)
+[![Website](https://img.shields.io/badge/website-ravenrepo.github.io%2Fnotion--workx-a78bfa.svg)](https://ravenrepo.github.io/notion-workx/)
 
 **WorX converts OpenAPI 3.x specs into Notion Worker tools.**
 
@@ -100,12 +107,34 @@ npm test
 npm run build
 ```
 
+## FAQ
+
+**How do I turn an OpenAPI spec into Notion Worker tools?**
+Run `worx generate --spec <url|path> --output ./worker`. Every supported endpoint becomes a `worker.tool()` in a TypeScript Notion Worker project, which you deploy with `ntn`.
+
+**What's the difference between WorX and the Notion CLI (`ntn`)?**
+`ntn` handles auth, build, deploy, run and worker management. WorX is the generation layer on top: it writes the worker code from your spec.
+
+**What if my API has more endpoints than a Notion Worker allows?**
+Notion currently caps a worker at 100 capabilities. Generate one worker per tag group with `--filter`.
+
+**Is WorX affiliated with Notion?**
+No. WorX is an independent open-source project that generates code for Notion's worker platform.
+
 ## Open source docs
 
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [AGENTS.md](AGENTS.md)
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - [SECURITY.md](SECURITY.md)
+
+## Author
+
+WorX is built and maintained by [Amit Kumar](https://iamamitkumar.dev) ([@growthperclick](https://x.com/growthperclick)), a founder and AI engineer who builds production agents, MCP tools and open tooling for AI agents. Also by the author: [agent-guard](https://github.com/RavenRepo/agent-guard) and [ladder](https://github.com/RavenRepo/ladder). More at [growthperclick.com](https://growthperclick.com).
+
+## Sponsor
+
+WorX is free and open source. If it saves you time, please consider [sponsoring on GitHub](https://github.com/sponsors/RavenRepo).
 
 ## License
 
